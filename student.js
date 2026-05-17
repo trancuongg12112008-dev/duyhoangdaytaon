@@ -938,6 +938,8 @@ db.channel('student-lock-' + currentUser)
     const s = payload.new;
     if (!s.active) {
       if (typeof _wmDestroyed !== 'undefined') _wmDestroyed = true;
+      await setOffline();
+      sessionStorage.clear();
       document.body.innerHTML = `
         <div style="position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.25rem;text-align:center;padding:2rem;z-index:99999">
           <div style="font-size:3.5rem">🔒</div>
@@ -946,12 +948,49 @@ db.channel('student-lock-' + currentUser)
             Tài khoản của bạn vừa bị khóa bởi quản trị viên.<br/>
             Vui lòng liên hệ <b style="color:#fff">Trợ Lý Trần Cường hoặc Quốc Toàn</b> để được hỗ trợ.
           </div>
-          <button onclick="sessionStorage.clear();location.href='index.html'" style="margin-top:.5rem;background:#6366f1;color:#fff;border:none;padding:.75rem 2rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer">
+          <div id="_lockCountdown" style="color:rgba(255,255,255,.5);font-size:.85rem">Tự động chuyển về đăng nhập sau <b style="color:#fff">3</b> giây...</div>
+          <button onclick="location.href='index.html'" style="margin-top:.5rem;background:#6366f1;color:#fff;border:none;padding:.75rem 2rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer">
             Về trang đăng nhập
           </button>
         </div>`;
+      let _c = 3;
+      const _t = setInterval(() => {
+        _c--;
+        const el = document.getElementById('_lockCountdown');
+        if (el) el.innerHTML = `Tự động chuyển về đăng nhập sau <b style="color:#fff">${_c}</b> giây...`;
+        if (_c <= 0) { clearInterval(_t); location.href = 'index.html'; }
+      }, 1000);
+    }
+  })
+  .subscribe();
+
+// Realtime: lắng nghe bảo trì — out ngay không cần reload
+db.channel('maintenance-watch')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'app_settings',
+    filter: 'key=eq.maintenance'
+  }, async (payload) => {
+    const val = payload.new?.value;
+    if (val === 'true') {
+      if (typeof _wmDestroyed !== 'undefined') _wmDestroyed = true;
       await setOffline();
       sessionStorage.clear();
+      // Hiện màn hình bảo trì ngay, không reload
+      document.body.style.cssText = 'margin:0;padding:0;overflow:hidden';
+      document.body.innerHTML = `
+        <div style="min-height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e1b4b,#312e81);padding:2rem;box-sizing:border-box">
+          <div style="background:#fff;border-radius:20px;padding:2.5rem 2rem;text-align:center;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.3)">
+            <img src="btht.png" alt="Bảo trì" style="width:100%;border-radius:12px;margin-bottom:1.25rem"/>
+            <div style="font-size:1.3rem;font-weight:800;color:#1e1b4b;margin-bottom:.75rem">Hệ thống đang bảo trì</div>
+            <div style="font-size:.9rem;color:#64748b;line-height:1.7;margin-bottom:1.5rem">
+              Chúng tôi đang nâng cấp hệ thống để phục vụ bạn tốt hơn.<br/>
+              Vui lòng quay lại sau ít phút.
+            </div>
+            <div style="font-size:.82rem;color:#94a3b8">Liên hệ trợ lý nếu cần hỗ trợ gấp.</div>
+          </div>
+        </div>`;
     }
   })
   .subscribe();
